@@ -68,6 +68,8 @@
   "placeIndex": 0,
   "placeValue": 1,
   "op": "+",
+  "baseLhsDigit": 2,
+  "effectiveLhsDigit": 2,
   "lhsDigit": 2,
   "rhsDigit": 3,
   "carryIn": 0,
@@ -87,6 +89,10 @@
 - `carryOut` 与 `borrowOut` 不可同时为 1；
 - 当前位的 `carryIn/borrowIn` 必须来自低位 `CalcStep` 的输出；
 - `valueAfter` 必须与位结果一致（可被重算验证）。
+- `effectiveLhsDigit` 必须是本步真实参与运算的值：
+  - 加法：`effectiveLhsDigit = baseLhsDigit + carryIn`
+  - 减法：`effectiveLhsDigit = baseLhsDigit - borrowIn`
+- 展示层文案与公式优先使用 `effectiveLhsDigit`，避免出现“十位原是2但本步显示2+1”的教学歧义。
 
 ---
 
@@ -183,15 +189,17 @@
 parse digits
 carry = 0, borrow = 0
 for placeIndex in [0..N-1]:
-  lhs = leftDigit(placeIndex)
+  baseLhs = leftDigit(placeIndex)
   rhs = rightDigit(placeIndex)
   if op == '+':
-    raw = lhs + rhs + carry
+    effectiveLhs = baseLhs + carry
+    raw = effectiveLhs + rhs
     digitResult = raw % 10
     carryOut = floor(raw / 10)
     borrowOut = 0
   else:
-    raw = lhs - rhs - borrow
+    effectiveLhs = baseLhs - borrow
+    raw = effectiveLhs - rhs
     if raw < 0:
       raw += 10
       borrowOut = 1
@@ -272,6 +280,25 @@ for placeIndex in [0..N-1]:
 - `27 + 18`：必须出现个位 `carryOut=1`；
 - `23 - 18`：必须出现个位 `borrowOut=1`；
 - `50 - 27`：借位链路与十位结果一致。
+- `27 + 18`：十位展示应使用本步参与值，表达为 `3 + 1 = 4`（不是 `2 + 1 = 4`）。
+
+---
+
+## 9. 珠算中文术语规范
+
+统一用语（展示文案必须遵循）：
+
+- `上`：上珠靠梁，表示 5。
+- `下`：下珠靠梁，表示 1。
+- `进`：本位满十，向高位进 1。
+- `退`：本位从较大值回拨到较小值（归并时常见）。
+- `借`：本位不够减，向高位借 1。
+- `本位/高位`：当前处理位/其左侧更高位。
+
+禁用建议（避免语义漂移）：
+
+- 避免仅用“移动/变化”描述运算动作，需明确“进/退/借/上/下”。
+- 避免把屏幕方向词（上移/下移）混用为珠算动作词。
 
 ---
 
