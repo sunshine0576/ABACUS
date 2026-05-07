@@ -1,0 +1,225 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: #f5f7fb;
+  color: #1f2a44;
+}
+
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+header h1 {
+  margin: 0;
+}
+
+header p {
+  margin: 6px 0 0;
+  color: #4a5a7a;
+}
+
+.mode-switch {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+button,
+select,
+input {
+  font-size: 16px;
+  border-radius: 10px;
+  border: 1px solid #ccd5ea;
+  padding: 9px 12px;
+}
+
+button {
+  cursor: pointer;
+  background: #fff;
+}
+
+button.active {
+  background: #3d74ff;
+  color: #fff;
+  border-color: #3d74ff;
+}
+
+.card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 3px 14px rgba(29, 61, 133, 0.08);
+  margin-bottom: 14px;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: #4a5a7a;
+  margin-bottom: 10px;
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.upper-dot {
+  background: #ff9f43;
+}
+
+.lower-dot {
+  background: #4dabf7;
+}
+
+.rod-labels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 6px 6px;
+  text-align: center;
+  color: #4a5a7a;
+}
+
+.abacus {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  background: #9b6b43;
+  border-radius: 16px;
+  padding: 16px 12px;
+}
+
+.abacus::before {
+  content: "";
+  position: absolute;
+  left: 6%;
+  width: 88%;
+  top: var(--beam-top-ratio, 45%);
+  height: var(--beam-height, 12px);
+  background: #4f2f17;
+  border-radius: 8px;
+}
+
+.rod {
+  position: relative;
+  height: 340px;
+  border-radius: 12px;
+}
+
+.rod::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 100%;
+  border-radius: 4px;
+  background: #6a4324;
+}
+
+.bead {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 66px;
+  height: 28px;
+  border-radius: 16px;
+  border: none;
+  color: #fff;
+  font-weight: bold;
+}
+
+.abacus.animate-move .bead {
+  transition: top 0.32s cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+.bead.upper {
+  background: #ff9f43;
+}
+
+.bead.lower {
+  background: #4dabf7;
+}
+
+.bead.highlight-change-bead {
+  animation: beadFlash 0.42s ease-in-out 3;
+}
+
+@keyframes beadFlash {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 0 3px #ffe082, 0 0 0 6px rgba(255, 255, 255, 0.72);
+  }
+}
+
+.display-value {
+  margin-top: 10px;
+  font-size: 24px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.panel h2 {
+  margin-top: 0;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.demo-inputs input {
+  width: 100px;
+}
+
+.feedback {
+  min-height: 28px;
+  font-weight: bold;
+}
+
+.feedback.success {
+  color: #1f9d56;
+}
+
+.feedback.error {
+  color: #d64545;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .bead {
+    width: 56px;
+  }
+}

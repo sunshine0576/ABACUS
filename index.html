@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小学生算盘学习工具</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>小学生算盘学习工具</h1>
+      <p>认识数字 + 加减法分步演示</p>
+    </header>
+
+    <nav class="mode-switch">
+      <button id="modeLearn" class="active">认识算盘数字</button>
+      <button id="modeDemo">加减法演示</button>
+    </nav>
+
+    <section class="card abacus-card">
+      <div class="legend">
+        <span><i class="dot upper-dot"></i>上珠（2颗，每颗=5）</span>
+        <span><i class="dot lower-dot"></i>下珠（一珠）= 1</span>
+        <span>下珠5颗，靠近横梁才算数</span>
+      </div>
+
+      <div id="rodLabels" class="rod-labels"></div>
+      <div id="abacus" class="abacus" aria-label="算盘"></div>
+      <div id="displayValue" class="display-value">当前数值：0</div>
+    </section>
+
+    <section id="learnPanel" class="card panel">
+      <h2>认识算盘数字</h2>
+      <div class="controls">
+        <button id="randomTargetBtn">出题：随机拨数</button>
+        <button id="checkAnswerBtn">检查答案</button>
+        <button id="setByInputBtn">用输入数字拨珠</button>
+        <button id="resetLearnBtn">重置</button>
+      </div>
+      <div class="input-row">
+        <label for="numberInput">输入数字（0~999）</label>
+        <input id="numberInput" type="number" min="0" max="999" value="0">
+      </div>
+      <p id="targetPrompt">请拨出数字：—</p>
+      <p id="feedback" class="feedback"></p>
+    </section>
+
+    <section id="demoPanel" class="card panel hidden">
+      <h2>加减法分步操作演示</h2>
+      <div class="input-row demo-inputs">
+        <label for="leftInput">第一个数</label>
+        <input id="leftInput" type="number" min="0" max="999" value="23">
+        <label for="opInput">运算符</label>
+        <select id="opInput">
+          <option value="+">+</option>
+          <option value="-">-</option>
+        </select>
+        <label for="rightInput">第二个数</label>
+        <input id="rightInput" type="number" min="0" max="999" value="18">
+      </div>
+      <div class="controls">
+        <button id="buildDemoBtn">生成演示</button>
+        <button id="prevStepBtn">上一步</button>
+        <button id="nextStepBtn">下一步</button>
+        <button id="autoPlayBtn">自动播放</button>
+        <button id="resetDemoBtn">重置</button>
+      </div>
+      <p id="expressionText">题目：—</p>
+      <p id="stepText">步骤：请先生成演示</p>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
