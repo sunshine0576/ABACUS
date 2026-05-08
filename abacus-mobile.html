@@ -303,9 +303,9 @@ button.active {
     </section>
   </div>
 
-  <script src="calc-planner.js"></script>
-  <script src="display-planner.js"></script>
-  <script src="script-builder.js"></script>
+  <script src="calc-planner.js?v=5col-r2"></script>
+  <script src="display-planner.js?v=5col-r2"></script>
+  <script src="script-builder.js?v=5col-r2"></script>
 
   <script>
 const ROD_COUNT = 5;
@@ -613,7 +613,7 @@ function checkAnswer() {
 }
 
 function validateRange(num) {
-  return Number.isInteger(num) && num >= 0 && num <= 999;
+  return Number.isInteger(num) && num >= 0 && num <= MAX_VALUE;
 }
 
 function addStep(valueAfter, place, narration, formula = "") {

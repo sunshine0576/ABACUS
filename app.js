@@ -309,7 +309,7 @@ function checkAnswer() {
 }
 
 function validateRange(num) {
-  return Number.isInteger(num) && num >= 0 && num <= 999;
+  return Number.isInteger(num) && num >= 0 && num <= MAX_VALUE;
 }
 
 function addStep(valueAfter, place, narration, formula = "") {
