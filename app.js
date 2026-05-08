@@ -1,7 +1,7 @@
-const ROD_COUNT = 3;
-const PLACE_NAMES = ["百位", "十位", "个位"];
-const POWERS = [100, 10, 1];
-const MAX_VALUE = 999;
+const ROD_COUNT = 5;
+const PLACE_NAMES = ["万位", "千位", "百位", "十位", "个位"];
+const POWERS = [10000, 1000, 100, 10, 1];
+const MAX_VALUE = 99999;
 const UPPER_BEAD_COUNT = 2;
 const LOWER_BEAD_COUNT = 5;
 const AUTO_PLAY_START_DELAY = 600;
@@ -88,11 +88,11 @@ function composeDigit(rodState) {
 
 function numberToDigits(number) {
   const safe = clamp(Math.floor(number), 0, MAX_VALUE);
-  return [
-    Math.floor(safe / 100) % 10,
-    Math.floor(safe / 10) % 10,
-    safe % 10
-  ];
+  const out = [];
+  for (let i = 0; i < ROD_COUNT; i += 1) {
+    out.push(Math.floor(safe / POWERS[i]) % 10);
+  }
+  return out;
 }
 
 function setNumberOnAbacus(number, options = {}) {
@@ -290,7 +290,7 @@ function switchMode(mode) {
 }
 
 function randomTarget() {
-  state.targetNumber = Math.floor(Math.random() * 1000);
+  state.targetNumber = Math.floor(Math.random() * (MAX_VALUE + 1));
   refs.targetPrompt.textContent = `请拨出数字：${state.targetNumber}`;
   setFeedback("", true);
 }
@@ -635,7 +635,7 @@ function buildDemo() {
   const op = refs.opInput.value;
 
   if (!validateRange(left) || !validateRange(right)) {
-    refs.stepText.textContent = "请输入 0~999 的整数。";
+    refs.stepText.textContent = `请输入 0~${MAX_VALUE} 的整数。`;
     return;
   }
   if (op === "-" && left < right) {
@@ -644,8 +644,8 @@ function buildDemo() {
   }
 
   const result = op === "+" ? left + right : left - right;
-  if (result > 999) {
-    refs.stepText.textContent = "结果超过 999，请换一组数据。";
+  if (result > MAX_VALUE) {
+    refs.stepText.textContent = `结果超过 ${MAX_VALUE}，请换一组数据。`;
     return;
   }
 
@@ -787,7 +787,7 @@ function bindEvents() {
   refs.setByInputBtn.addEventListener("click", () => {
     const n = Number(refs.numberInput.value);
     if (!validateRange(n)) {
-      setFeedback("请输入 0~999 的整数。", false);
+      setFeedback(`请输入 0~${MAX_VALUE} 的整数。`, false);
       return;
     }
     stopStepAnimation();

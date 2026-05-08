@@ -39,8 +39,8 @@
         <button id="resetLearnBtn">重置</button>
       </div>
       <div class="input-row">
-        <label for="numberInput">输入数字（0~999）</label>
-        <input id="numberInput" type="number" min="0" max="999" value="0">
+        <label for="numberInput">输入数字（0~99999）</label>
+        <input id="numberInput" type="number" min="0" max="99999" value="0">
       </div>
       <p id="targetPrompt">请拨出数字：—</p>
       <p id="feedback" class="feedback"></p>
@@ -50,14 +50,14 @@
       <h2>加减法分步操作演示</h2>
       <div class="input-row demo-inputs">
         <label for="leftInput">第一个数</label>
-        <input id="leftInput" type="number" min="0" max="999" value="23">
+        <input id="leftInput" type="number" min="0" max="99999" value="23">
         <label for="opInput">运算符</label>
         <select id="opInput">
           <option value="+">+</option>
           <option value="-">-</option>
         </select>
         <label for="rightInput">第二个数</label>
-        <input id="rightInput" type="number" min="0" max="999" value="18">
+        <input id="rightInput" type="number" min="0" max="99999" value="18">
       </div>
       <div class="controls">
         <button id="buildDemoBtn">生成演示</button>

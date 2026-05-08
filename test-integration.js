@@ -21,8 +21,8 @@ function assert(condition, message) {
 
 function buildScript(problem) {
   const calcSteps = buildCalcSteps(problem);
-  const displaySteps = deriveDisplaySteps(calcSteps, { rodCount: 4, upperBeadCount: 2 });
-  return buildRunScript(problem, displaySteps, { maxValue: 9999 });
+  const displaySteps = deriveDisplaySteps(calcSteps, { rodCount: 6, upperBeadCount: 2 });
+  return buildRunScript(problem, displaySteps, { maxValue: 99999 });
 }
 
 function getSceneBoundsForFlatIndex(frames, flatIndex) {
@@ -200,7 +200,9 @@ function runFixed() {
     { left: 1000, op: "-", right: 1 },
     { left: 100, op: "-", right: 0 },
     { left: 50, op: "+", right: 100 },
-    { left: 8421, op: "-", right: 3975 }
+    { left: 8421, op: "-", right: 3975 },
+    { left: 99999, op: "+", right: 1 },
+    { left: 50000, op: "-", right: 12345 }
   ];
   cases.forEach(runOne);
 }
@@ -208,8 +210,8 @@ function runFixed() {
 function runRandom(rounds = 3000) {
   for (let i = 0; i < rounds; i += 1) {
     const plus = Math.random() < 0.5;
-    const left = Math.floor(Math.random() * 10000);
-    const rightRaw = Math.floor(Math.random() * 10000);
+    const left = Math.floor(Math.random() * 100000);
+    const rightRaw = Math.floor(Math.random() * 100000);
     const problem = plus
       ? { left, op: "+", right: rightRaw }
       : { left, op: "-", right: Math.min(left, rightRaw) };
