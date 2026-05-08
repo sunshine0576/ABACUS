@@ -1,0 +1,13 @@
+{
+  "name": "abacus-learning-tool",
+  "version": "2.0.0",
+  "description": "小学生算盘学习工具：按位差分驱动的加减法分镜演示",
+  "private": true,
+  "scripts": {
+    "test": "node ./run-tests.js",
+    "test:calc": "node ./test-calc-planner.js",
+    "test:display": "node ./test-display-planner.js",
+    "test:script": "node ./test-script-builder.js",
+    "test:integration": "node ./test-integration.js"
+  }
+}

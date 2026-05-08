@@ -97,10 +97,15 @@
     const scenes = groupIntoScenes(displaySteps);
     scenes.forEach(enrichScene);
 
+    for (const scene of scenes) {
+      for (const frame of scene.frames) {
+        frame.sceneId = scene.sceneId;
+      }
+    }
     const flatFrames = [];
     for (const scene of scenes) {
       for (const frame of scene.frames) {
-        flatFrames.push({ ...frame, sceneId: scene.sceneId });
+        flatFrames.push(frame);
       }
     }
 
