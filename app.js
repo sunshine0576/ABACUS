@@ -4,9 +4,17 @@ const POWERS = [100, 10, 1];
 const MAX_VALUE = 999;
 const UPPER_BEAD_COUNT = 2;
 const LOWER_BEAD_COUNT = 5;
-const AUTO_PLAY_STEP_DELAY = 1600;
 const AUTO_PLAY_START_DELAY = 600;
 const DEMO_MOVE_DURATION = 320;
+/** 自动播放：顺序逐帧；场切换（上一 confirm → 下一帧） */
+const AUTO_PLAY_DELAY_SCENE = Math.max(720, DEMO_MOVE_DURATION + 400);
+/** 自动播放：进入或结束于「动画帧」(move) 后的等待 */
+const AUTO_PLAY_DELAY_MOVE = Math.max(1400, DEMO_MOVE_DURATION + 900);
+/** 自动播放：静止帧之间（如 focus→move、move→confirm） */
+const AUTO_PLAY_DELAY_STATIC = 560;
+/** 手动「下一步」播完一整场时的帧间节奏（略快于自动） */
+const MANUAL_SCENE_DELAY_MOVE = Math.max(1080, DEMO_MOVE_DURATION + 600);
+const MANUAL_SCENE_DELAY_STATIC = 380;
 const BEAM_TOP_RATIO = 0.45;
 const BEAM_HEIGHT_RATIO = 0.035;
 const TOP_MARGIN_RATIO = 0.065;
@@ -25,7 +33,10 @@ const state = {
   beadElements: [],
   isAnimating: false,
   animationTimer: null,
-  resizeTimer: null
+  resizeTimer: null,
+  scenePlaybackTimer: null,
+  scenePlaybackGen: 0,
+  autoPlaySeq: 0
 };
 
 const refs = {};
@@ -473,11 +484,79 @@ function buildRunScriptForExpression(left, op, right) {
   const problem = { left, op, right, base: 10 };
   const calcSteps = window.CalcPlanner.buildCalcSteps(problem);
   const displaySteps = window.DisplayPlanner.deriveDisplaySteps(calcSteps, {
-    includeExplain: true,
     rodCount: ROD_COUNT,
     upperBeadCount: UPPER_BEAD_COUNT
   });
   return window.ScriptBuilder.buildRunScript(problem, displaySteps, { maxValue: MAX_VALUE });
+}
+
+function stopScenePlayback() {
+  state.scenePlaybackGen += 1;
+  if (state.scenePlaybackTimer) {
+    window.clearTimeout(state.scenePlaybackTimer);
+    state.scenePlaybackTimer = null;
+  }
+}
+
+function getSceneBoundsForFlatIndex(flatIndex) {
+  const steps = state.demoSteps;
+  if (!steps.length) return null;
+  const safe = clamp(flatIndex, 0, steps.length - 1);
+  const sceneId = steps[safe].sceneId || "";
+  let start = safe;
+  while (start > 0 && (steps[start - 1].sceneId || "") === sceneId) start -= 1;
+  let end = safe;
+  while (end < steps.length - 1 && (steps[end + 1].sceneId || "") === sceneId) end += 1;
+  return { sceneId, start, end };
+}
+
+function getSceneProgressLine(flatIndex) {
+  const steps = state.demoSteps;
+  const script = state.runScript;
+  if (!steps.length) return "";
+  const bounds = getSceneBoundsForFlatIndex(flatIndex);
+  if (!bounds) return `步骤 ${flatIndex + 1}/${steps.length}`;
+  const scenes = script?.scenes;
+  if (!Array.isArray(scenes) || !scenes.length) {
+    return `步骤 ${flatIndex + 1}/${steps.length}`;
+  }
+  const sceneOrd = scenes.findIndex((s) => s.sceneId === bounds.sceneId) + 1;
+  const frameInScene = flatIndex - bounds.start + 1;
+  const framesInScene = bounds.end - bounds.start + 1;
+  return `场 ${sceneOrd}/${scenes.length} · 帧 ${frameInScene}/${framesInScene} · 全局 ${flatIndex + 1}/${steps.length}`;
+}
+
+function computeDelayAfterShowingFrame(flatIndex, mode) {
+  const steps = state.demoSteps;
+  if (flatIndex >= steps.length - 1) return 0;
+  const cur = steps[flatIndex];
+  const next = steps[flatIndex + 1];
+  const sceneChange = (cur.sceneId || "") !== (next.sceneId || "");
+  if (mode === "auto") {
+    if (sceneChange) return AUTO_PLAY_DELAY_SCENE;
+    if (next.type === "move") return AUTO_PLAY_DELAY_MOVE;
+    return AUTO_PLAY_DELAY_STATIC;
+  }
+  if (sceneChange) return AUTO_PLAY_DELAY_SCENE;
+  if (next.type === "move") return MANUAL_SCENE_DELAY_MOVE;
+  return MANUAL_SCENE_DELAY_STATIC;
+}
+
+function playFlatRange(start, end, mode) {
+  stopScenePlayback();
+  const gen = state.scenePlaybackGen;
+  function tick(idx) {
+    if (gen !== state.scenePlaybackGen) return;
+    const st = state.demoSteps[idx];
+    showStep(idx, { animate: Boolean(st.animate) });
+    if (idx >= end) {
+      state.scenePlaybackTimer = null;
+      return;
+    }
+    const wait = computeDelayAfterShowingFrame(idx, mode);
+    state.scenePlaybackTimer = window.setTimeout(() => tick(idx + 1), wait);
+  }
+  tick(start);
 }
 
 function clearHighlightNow() {
@@ -506,11 +585,19 @@ function stopStepAnimation() {
 }
 
 function stopAutoPlay() {
+  state.autoPlaySeq += 1;
   if (state.autoPlayTimer) {
     window.clearTimeout(state.autoPlayTimer);
     state.autoPlayTimer = null;
   }
   refs.autoPlayBtn.textContent = "自动播放";
+}
+
+function resolveHighlightBeads(step, prevStepObj) {
+  const hb = step.highlightBeads;
+  if (Array.isArray(hb) && hb.length === ROD_COUNT) return hb;
+  const prevVal = prevStepObj ? prevStepObj.valueAfter : null;
+  return getChangedBeads(prevVal, step.valueAfter);
 }
 
 function showStep(index, options = {}) {
@@ -521,7 +608,7 @@ function showStep(index, options = {}) {
   const step = state.demoSteps[safe];
   const prevStep = safe > 0 ? state.demoSteps[safe - 1] : null;
   const animateStep = animate === null ? Boolean(step.animate) : animate;
-  state.highlightBeads = step.highlightBeads || getChangedBeads(prevStep ? prevStep.valueAfter : null, step.valueAfter);
+  state.highlightBeads = resolveHighlightBeads(step, prevStep);
   stopStepAnimation();
   setNumberOnAbacus(step.valueAfter, { animate: animateStep });
   if (animateStep) {
@@ -535,11 +622,13 @@ function showStep(index, options = {}) {
   scheduleHighlightClear();
   const formulaText = step.formula ? `（${step.formula}）` : "";
   const changedText = describeChangedBeads(state.highlightBeads);
-  refs.stepText.textContent = `步骤 ${safe + 1}/${state.demoSteps.length}：${step.narration}${formulaText}，变化算珠：${changedText}，当前值 ${step.valueAfter}`;
+  const progress = getSceneProgressLine(safe);
+  refs.stepText.textContent = `${progress}：${step.narration}${formulaText}，变化算珠：${changedText}，当前值 ${step.valueAfter}`;
 }
 
 function buildDemo() {
   stopAutoPlay();
+  stopScenePlayback();
   stopStepAnimation();
   const left = Number(refs.leftInput.value);
   const right = Number(refs.rightInput.value);
@@ -569,6 +658,13 @@ function buildDemo() {
     refs.stepText.textContent = `生成演示失败：${error.message}`;
     return;
   }
+  if (!state.demoSteps.length) {
+    state.stepIndex = -1;
+    refs.expressionText.textContent = `题目：${left} ${op} ${right} = ${result}`;
+    refs.stepText.textContent = "当前算式无珠面变化步骤（例如加 0）。";
+    setNumberOnAbacus(left, { animate: false });
+    return;
+  }
   state.stepIndex = 0;
   refs.expressionText.textContent = `题目：${left} ${op} ${right} = ${result}`;
   showStep(0, { animate: false });
@@ -579,13 +675,21 @@ function nextStep() {
     refs.stepText.textContent = "请先生成演示。";
     return;
   }
-  if (state.stepIndex >= state.demoSteps.length - 1) {
-    stopAutoPlay();
-    refs.stepText.textContent = "已到最后一步。";
+  stopAutoPlay();
+  const bounds = getSceneBoundsForFlatIndex(state.stepIndex);
+  if (!bounds) return;
+  const atEndOfScene = state.stepIndex === bounds.end;
+  if (!atEndOfScene) {
+    playFlatRange(state.stepIndex, bounds.end, "manual");
     return;
   }
-  const shouldAnimate = !state.isAnimating;
-  showStep(state.stepIndex + 1, { animate: shouldAnimate });
+  const nextStart = bounds.end + 1;
+  if (nextStart >= state.demoSteps.length) {
+    refs.stepText.textContent = "已到最后一场。";
+    return;
+  }
+  const nb = getSceneBoundsForFlatIndex(nextStart);
+  playFlatRange(nextStart, nb.end, "manual");
 }
 
 function prevStep() {
@@ -593,11 +697,21 @@ function prevStep() {
     refs.stepText.textContent = "请先生成演示。";
     return;
   }
-  if (state.stepIndex <= 0) {
-    refs.stepText.textContent = "已到第一步。";
+  stopAutoPlay();
+  stopScenePlayback();
+  const bounds = getSceneBoundsForFlatIndex(state.stepIndex);
+  if (!bounds) return;
+  if (state.stepIndex > bounds.start) {
+    showStep(bounds.start, { animate: false });
     return;
   }
-  showStep(state.stepIndex - 1, { animate: false });
+  if (bounds.start <= 0) {
+    refs.stepText.textContent = "已到第一场。";
+    return;
+  }
+  const prevEnd = bounds.start - 1;
+  const pb = getSceneBoundsForFlatIndex(prevEnd);
+  showStep(pb.end, { animate: false });
 }
 
 function toggleAutoPlay() {
@@ -610,10 +724,13 @@ function toggleAutoPlay() {
     refs.stepText.textContent = "自动播放已暂停。";
     return;
   }
+  stopScenePlayback();
   refs.autoPlayBtn.textContent = "暂停播放";
-  state.autoPlayTimer = window.setTimeout(function playNext() {
+  const seqAtStart = state.autoPlaySeq;
+  function tick() {
+    if (seqAtStart !== state.autoPlaySeq) return;
     if (state.isAnimating) {
-      state.autoPlayTimer = window.setTimeout(playNext, 80);
+      state.autoPlayTimer = window.setTimeout(tick, 80);
       return;
     }
     if (state.stepIndex >= state.demoSteps.length - 1) {
@@ -621,9 +738,13 @@ function toggleAutoPlay() {
       refs.stepText.textContent = "自动播放结束：已到最后一步。";
       return;
     }
-    showStep(state.stepIndex + 1, { animate: true });
-    state.autoPlayTimer = window.setTimeout(playNext, AUTO_PLAY_STEP_DELAY);
-  }, AUTO_PLAY_START_DELAY);
+    const nextIdx = state.stepIndex + 1;
+    const st = state.demoSteps[nextIdx];
+    showStep(nextIdx, { animate: Boolean(st.animate) });
+    const wait = computeDelayAfterShowingFrame(nextIdx, "auto");
+    state.autoPlayTimer = window.setTimeout(tick, wait > 0 ? wait : 40);
+  }
+  state.autoPlayTimer = window.setTimeout(tick, AUTO_PLAY_START_DELAY);
 }
 
 function resetLearn() {
@@ -641,6 +762,7 @@ function resetLearn() {
 
 function resetDemo() {
   stopAutoPlay();
+  stopScenePlayback();
   stopStepAnimation();
   if (state.clearHighlightTimer) {
     window.clearTimeout(state.clearHighlightTimer);

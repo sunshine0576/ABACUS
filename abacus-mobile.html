@@ -297,398 +297,10 @@ button.active {
     </section>
   </div>
 
-  <script>
-(function factoryCalcPlanner(rootFactory) {
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = rootFactory();
-  } else if (typeof window !== "undefined") {
-    window.CalcPlanner = rootFactory();
-  }
-})(function createCalcPlanner() {
-  const DEFAULT_BASE = 10;
+  <script src="calc-planner.js"></script>
+  <script src="display-planner.js"></script>
+  <script src="script-builder.js"></script>
 
-  function isNonNegativeInteger(value) {
-    return Number.isInteger(value) && value >= 0;
-  }
-
-  function digitAt(value, placeIndex, base) {
-    return Math.floor(value / (base ** placeIndex)) % base;
-  }
-
-  function computePlaceValue(placeIndex, base) {
-    return base ** placeIndex;
-  }
-
-  function validateProblem(problem) {
-    if (!problem || typeof problem !== "object") {
-      throw new Error("problem 必须是对象。");
-    }
-    const { left, right, op, base = DEFAULT_BASE } = problem;
-    if (!isNonNegativeInteger(left) || !isNonNegativeInteger(right)) {
-      throw new Error("left/right 必须是非负整数。");
-    }
-    if (op !== "+" && op !== "-") {
-      throw new Error("op 仅支持 + 或 -。");
-    }
-    if (!Number.isInteger(base) || base < 2) {
-      throw new Error("base 必须是 >= 2 的整数。");
-    }
-    if (op === "-" && left < right) {
-      throw new Error("当前减法仅支持 left >= right。");
-    }
-  }
-
-  function buildCalcSteps(problem) {
-    validateProblem(problem);
-    const { left, right, op, base = DEFAULT_BASE } = problem;
-    const steps = [];
-    const maxDigits = Math.max(String(left).length, String(right).length);
-    let carry = 0;
-    let borrow = 0;
-    let valueAfter = 0;
-
-    for (let placeIndex = 0; placeIndex < maxDigits; placeIndex += 1) {
-      const placeValue = computePlaceValue(placeIndex, base);
-      const lhsDigit = digitAt(left, placeIndex, base);
-      const rhsDigit = digitAt(right, placeIndex, base);
-      const carryIn = carry;
-      const borrowIn = borrow;
-      let raw;
-      let digitResult;
-      let carryOut = 0;
-      let borrowOut = 0;
-
-      if (op === "+") {
-        raw = lhsDigit + rhsDigit + carryIn;
-        digitResult = raw % base;
-        carryOut = Math.floor(raw / base);
-        borrowOut = 0;
-      } else {
-        raw = lhsDigit - rhsDigit - borrowIn;
-        if (raw < 0) {
-          raw += base;
-          borrowOut = 1;
-        }
-        digitResult = raw;
-        carryOut = 0;
-      }
-
-      const valueBefore = valueAfter;
-      valueAfter += digitResult * placeValue;
-
-      steps.push({
-        id: `c${placeIndex + 1}`,
-        placeIndex,
-        placeValue,
-        op,
-        lhsDigit,
-        rhsDigit,
-        carryIn,
-        borrowIn,
-        raw,
-        digitResult,
-        carryOut,
-        borrowOut,
-        valueBefore,
-        valueAfter
-      });
-
-      carry = carryOut;
-      borrow = borrowOut;
-    }
-
-    if (op === "+" && carry > 0) {
-      const placeIndex = maxDigits;
-      const placeValue = computePlaceValue(placeIndex, base);
-      const valueBefore = valueAfter;
-      const digitResult = carry;
-      valueAfter += digitResult * placeValue;
-      steps.push({
-        id: `c${placeIndex + 1}`,
-        placeIndex,
-        placeValue,
-        op,
-        lhsDigit: 0,
-        rhsDigit: 0,
-        carryIn: carry,
-        borrowIn: 0,
-        raw: carry,
-        digitResult,
-        carryOut: 0,
-        borrowOut: 0,
-        valueBefore,
-        valueAfter
-      });
-      carry = 0;
-    }
-
-    if (op === "-" && borrow > 0) {
-      throw new Error("减法步骤生成失败：最高位仍存在 borrowOut。");
-    }
-
-    return steps;
-  }
-
-  return {
-    buildCalcSteps
-  };
-});
-  </script>
-  <script>
-(function factoryDisplayPlanner(rootFactory) {
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = rootFactory();
-  } else if (typeof window !== "undefined") {
-    window.DisplayPlanner = rootFactory();
-  }
-})(function createDisplayPlanner() {
-  const PLACE_NAMES = ["个位", "十位", "百位", "千位", "万位"];
-  const DEFAULT_ROD_COUNT = 3;
-  const DEFAULT_UPPER_BEAD_COUNT = 2;
-
-  function placeName(placeIndex) {
-    return PLACE_NAMES[placeIndex] || `第${placeIndex + 1}位`;
-  }
-
-  function ensureCalcSteps(calcSteps) {
-    if (!Array.isArray(calcSteps) || calcSteps.length === 0) {
-      throw new Error("calcSteps 不能为空。");
-    }
-  }
-
-  function emptyHighlightBeads(rodCount) {
-    return Array.from({ length: rodCount }, () => ({ upper: [], lower: [] }));
-  }
-
-  function decomposeDigit(digit) {
-    const safe = Math.max(0, Math.min(9, Math.floor(digit)));
-    return {
-      upperCount: safe >= 5 ? 1 : 0,
-      lowerCount: safe % 5
-    };
-  }
-
-  function placeIndexToRodIndex(placeIndex, rodCount) {
-    return rodCount - 1 - placeIndex;
-  }
-
-  function highlightForDigit(placeIndex, digit, config) {
-    const { rodCount, upperBeadCount } = config;
-    const rodIndex = placeIndexToRodIndex(placeIndex, rodCount);
-    const output = emptyHighlightBeads(rodCount);
-    if (rodIndex < 0 || rodIndex >= rodCount) return output;
-    const d = decomposeDigit(digit);
-    for (let i = 0; i < d.upperCount; i += 1) {
-      output[rodIndex].upper.push(upperBeadCount - 1 - i);
-    }
-    for (let i = 0; i < d.lowerCount; i += 1) {
-      output[rodIndex].lower.push(i);
-    }
-    return output;
-  }
-
-  function highlightForMove(step, config) {
-    const { rodCount, upperBeadCount } = config;
-    const rodIndex = placeIndexToRodIndex(step.placeIndex, rodCount);
-    const output = emptyHighlightBeads(rodCount);
-    if (rodIndex < 0 || rodIndex >= rodCount) return output;
-    const prev = decomposeDigit(step.lhsDigit);
-    const next = decomposeDigit(step.digitResult);
-    if (prev.upperCount !== next.upperCount) {
-      const startUpper = Math.min(prev.upperCount, next.upperCount);
-      const endUpper = Math.max(prev.upperCount, next.upperCount);
-      for (let i = startUpper; i < endUpper; i += 1) {
-        output[rodIndex].upper.push(upperBeadCount - 1 - i);
-      }
-    }
-    if (prev.lowerCount !== next.lowerCount) {
-      const startLower = Math.min(prev.lowerCount, next.lowerCount);
-      const endLower = Math.max(prev.lowerCount, next.lowerCount);
-      for (let i = startLower; i < endLower; i += 1) {
-        output[rodIndex].lower.push(i);
-      }
-    }
-    const higherRodIndex = placeIndexToRodIndex(step.placeIndex + 1, rodCount);
-    if (higherRodIndex >= 0 && higherRodIndex < rodCount) {
-      if (step.carryOut > 0 || step.borrowOut > 0) {
-        if (!output[higherRodIndex].lower.includes(0)) {
-          output[higherRodIndex].lower.push(0);
-        }
-      }
-    }
-    return output;
-  }
-
-  function buildMoveNarration(step) {
-    const pn = placeName(step.placeIndex);
-    const opWord = step.op === "+" ? "加" : "减";
-    let text = `${pn}${opWord} ${step.rhsDigit}`;
-    if (step.carryOut > 0) {
-      text += `，向高位进 ${step.carryOut}`;
-    }
-    if (step.borrowOut > 0) {
-      text += "，向高位借 1";
-    }
-    return text;
-  }
-
-  function buildMoveFormula(step) {
-    if (step.op === "+") {
-      const inputParts = [step.lhsDigit, step.rhsDigit];
-      if (step.carryIn > 0) inputParts.push(step.carryIn);
-      const inputExpr = inputParts.join(" + ");
-      if (step.carryOut > 0) {
-        return `${inputExpr} = ${step.raw}，本位记 ${step.digitResult}，向高位进 ${step.carryOut}`;
-      }
-      return `${inputExpr} = ${step.digitResult}`;
-    }
-    if (step.borrowOut > 0) {
-      if (step.borrowIn > 0) {
-        return `${step.lhsDigit} - ${step.rhsDigit} - ${step.borrowIn} 不够减，借位后本位为 ${step.digitResult}`;
-      }
-      return `${step.lhsDigit} - ${step.rhsDigit} 不够减，借位后本位为 ${step.digitResult}`;
-    }
-    if (step.borrowIn > 0) {
-      return `${step.lhsDigit} - ${step.rhsDigit} - ${step.borrowIn} = ${step.digitResult}`;
-    }
-    return `${step.lhsDigit} - ${step.rhsDigit} = ${step.digitResult}`;
-  }
-
-  function buildConfirmFormula(step) {
-    return `本位结果：${step.digitResult}`;
-  }
-
-  function deriveDisplaySteps(calcSteps, options = {}) {
-    ensureCalcSteps(calcSteps);
-    const {
-      includeExplain = false,
-      rodCount = DEFAULT_ROD_COUNT,
-      upperBeadCount = DEFAULT_UPPER_BEAD_COUNT
-    } = options;
-    const config = { rodCount, upperBeadCount };
-    const output = [];
-    let idx = 1;
-
-    for (const step of calcSteps) {
-      const pn = placeName(step.placeIndex);
-      const opWord = step.op === "+" ? "加" : "减";
-
-      output.push({
-        id: `d${idx++}`,
-        fromCalcStep: step.id,
-        type: "focus",
-        placeIndex: step.placeIndex,
-        animate: false,
-        valueAfter: step.valueBefore,
-        narration: `${pn}当前是 ${step.lhsDigit}，准备${opWord} ${step.rhsDigit}`,
-        formula: "",
-        highlightBeads: highlightForDigit(step.placeIndex, step.lhsDigit, config)
-      });
-
-      if (includeExplain && (step.carryOut > 0 || step.borrowOut > 0)) {
-        output.push({
-          id: `d${idx++}`,
-          fromCalcStep: step.id,
-          type: "explain",
-          placeIndex: step.placeIndex,
-          animate: false,
-          valueAfter: step.valueBefore,
-          narration: step.carryOut > 0 ? `${pn}满十，准备向高位进1` : `${pn}不够减，先向高位借1`,
-          formula: "",
-          highlightBeads: highlightForDigit(step.placeIndex, step.lhsDigit, config)
-        });
-      }
-
-      output.push({
-        id: `d${idx++}`,
-        fromCalcStep: step.id,
-        type: "move",
-        placeIndex: step.placeIndex,
-        animate: true,
-        valueAfter: step.valueAfter,
-        narration: buildMoveNarration(step),
-        formula: buildMoveFormula(step),
-        highlightBeads: highlightForMove(step, config)
-      });
-
-      output.push({
-        id: `d${idx++}`,
-        fromCalcStep: step.id,
-        type: "confirm",
-        placeIndex: step.placeIndex,
-        animate: false,
-        valueAfter: step.valueAfter,
-        narration: `${pn}结果是 ${step.digitResult}`,
-        formula: buildConfirmFormula(step),
-        highlightBeads: highlightForDigit(step.placeIndex, step.digitResult, config)
-      });
-    }
-
-    return output;
-  }
-
-  return {
-    deriveDisplaySteps
-  };
-});
-  </script>
-  <script>
-(function factoryScriptBuilder(rootFactory) {
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = rootFactory();
-  } else if (typeof window !== "undefined") {
-    window.ScriptBuilder = rootFactory();
-  }
-})(function createScriptBuilder() {
-  function ensureProblem(problem) {
-    if (!problem || typeof problem !== "object") {
-      throw new Error("problem 必须是对象。");
-    }
-    const { left, right, op } = problem;
-    if (!Number.isInteger(left) || !Number.isInteger(right)) {
-      throw new Error("problem.left/right 必须是整数。");
-    }
-    if (op !== "+" && op !== "-") {
-      throw new Error("problem.op 仅支持 + 或 -。");
-    }
-  }
-
-  function ensureDisplaySteps(displaySteps) {
-    if (!Array.isArray(displaySteps) || displaySteps.length === 0) {
-      throw new Error("displaySteps 不能为空。");
-    }
-  }
-
-  function buildRunScript(problem, displaySteps, options = {}) {
-    ensureProblem(problem);
-    ensureDisplaySteps(displaySteps);
-    const { maxValue = 999, version = "1.0" } = options;
-    const result = problem.op === "+" ? problem.left + problem.right : problem.left - problem.right;
-    return {
-      meta: {
-        expression: `${problem.left} ${problem.op} ${problem.right} = ${result}`,
-        maxValue,
-        version
-      },
-      frames: displaySteps.map((step) => ({
-        frameId: step.id,
-        fromCalcStep: step.fromCalcStep,
-        type: step.type,
-        placeIndex: step.placeIndex,
-        valueAfter: step.valueAfter,
-        animate: Boolean(step.animate),
-        highlightBeads: step.highlightBeads || [],
-        narration: step.narration || "",
-        formula: step.formula || ""
-      }))
-    };
-  }
-
-  return {
-    buildRunScript
-  };
-});
-  </script>
   <script>
 const ROD_COUNT = 3;
 const PLACE_NAMES = ["百位", "十位", "个位"];
@@ -696,9 +308,13 @@ const POWERS = [100, 10, 1];
 const MAX_VALUE = 999;
 const UPPER_BEAD_COUNT = 2;
 const LOWER_BEAD_COUNT = 5;
-const AUTO_PLAY_STEP_DELAY = 1600;
 const AUTO_PLAY_START_DELAY = 600;
 const DEMO_MOVE_DURATION = 320;
+const AUTO_PLAY_DELAY_SCENE = Math.max(720, DEMO_MOVE_DURATION + 400);
+const AUTO_PLAY_DELAY_MOVE = Math.max(1400, DEMO_MOVE_DURATION + 900);
+const AUTO_PLAY_DELAY_STATIC = 560;
+const MANUAL_SCENE_DELAY_MOVE = Math.max(1080, DEMO_MOVE_DURATION + 600);
+const MANUAL_SCENE_DELAY_STATIC = 380;
 const BEAM_TOP_RATIO = 0.45;
 const BEAM_HEIGHT_RATIO = 0.035;
 const TOP_MARGIN_RATIO = 0.065;
@@ -717,7 +333,10 @@ const state = {
   beadElements: [],
   isAnimating: false,
   animationTimer: null,
-  resizeTimer: null
+  resizeTimer: null,
+  scenePlaybackTimer: null,
+  scenePlaybackGen: 0,
+  autoPlaySeq: 0
 };
 
 const refs = {};
@@ -1079,11 +698,79 @@ function buildRunScriptForExpression(left, op, right) {
   const problem = { left, op, right, base: 10 };
   const calcSteps = window.CalcPlanner.buildCalcSteps(problem);
   const displaySteps = window.DisplayPlanner.deriveDisplaySteps(calcSteps, {
-    includeExplain: true,
     rodCount: ROD_COUNT,
     upperBeadCount: UPPER_BEAD_COUNT
   });
   return window.ScriptBuilder.buildRunScript(problem, displaySteps, { maxValue: MAX_VALUE });
+}
+
+function stopScenePlayback() {
+  state.scenePlaybackGen += 1;
+  if (state.scenePlaybackTimer) {
+    window.clearTimeout(state.scenePlaybackTimer);
+    state.scenePlaybackTimer = null;
+  }
+}
+
+function getSceneBoundsForFlatIndex(flatIndex) {
+  const steps = state.demoSteps;
+  if (!steps.length) return null;
+  const safe = clamp(flatIndex, 0, steps.length - 1);
+  const sceneId = steps[safe].sceneId || "";
+  let start = safe;
+  while (start > 0 && (steps[start - 1].sceneId || "") === sceneId) start -= 1;
+  let end = safe;
+  while (end < steps.length - 1 && (steps[end + 1].sceneId || "") === sceneId) end += 1;
+  return { sceneId, start, end };
+}
+
+function getSceneProgressLine(flatIndex) {
+  const steps = state.demoSteps;
+  const script = state.runScript;
+  if (!steps.length) return "";
+  const bounds = getSceneBoundsForFlatIndex(flatIndex);
+  if (!bounds) return `步骤 ${flatIndex + 1}/${steps.length}`;
+  const scenes = script?.scenes;
+  if (!Array.isArray(scenes) || !scenes.length) {
+    return `步骤 ${flatIndex + 1}/${steps.length}`;
+  }
+  const sceneOrd = scenes.findIndex((s) => s.sceneId === bounds.sceneId) + 1;
+  const frameInScene = flatIndex - bounds.start + 1;
+  const framesInScene = bounds.end - bounds.start + 1;
+  return `场 ${sceneOrd}/${scenes.length} · 帧 ${frameInScene}/${framesInScene} · 全局 ${flatIndex + 1}/${steps.length}`;
+}
+
+function computeDelayAfterShowingFrame(flatIndex, mode) {
+  const steps = state.demoSteps;
+  if (flatIndex >= steps.length - 1) return 0;
+  const cur = steps[flatIndex];
+  const next = steps[flatIndex + 1];
+  const sceneChange = (cur.sceneId || "") !== (next.sceneId || "");
+  if (mode === "auto") {
+    if (sceneChange) return AUTO_PLAY_DELAY_SCENE;
+    if (next.type === "move") return AUTO_PLAY_DELAY_MOVE;
+    return AUTO_PLAY_DELAY_STATIC;
+  }
+  if (sceneChange) return AUTO_PLAY_DELAY_SCENE;
+  if (next.type === "move") return MANUAL_SCENE_DELAY_MOVE;
+  return MANUAL_SCENE_DELAY_STATIC;
+}
+
+function playFlatRange(start, end, mode) {
+  stopScenePlayback();
+  const gen = state.scenePlaybackGen;
+  function tick(idx) {
+    if (gen !== state.scenePlaybackGen) return;
+    const st = state.demoSteps[idx];
+    showStep(idx, { animate: Boolean(st.animate) });
+    if (idx >= end) {
+      state.scenePlaybackTimer = null;
+      return;
+    }
+    const wait = computeDelayAfterShowingFrame(idx, mode);
+    state.scenePlaybackTimer = window.setTimeout(() => tick(idx + 1), wait);
+  }
+  tick(start);
 }
 
 function clearHighlightNow() {
@@ -1112,11 +799,19 @@ function stopStepAnimation() {
 }
 
 function stopAutoPlay() {
+  state.autoPlaySeq += 1;
   if (state.autoPlayTimer) {
     window.clearTimeout(state.autoPlayTimer);
     state.autoPlayTimer = null;
   }
   refs.autoPlayBtn.textContent = "自动播放";
+}
+
+function resolveHighlightBeads(step, prevStepObj) {
+  const hb = step.highlightBeads;
+  if (Array.isArray(hb) && hb.length === ROD_COUNT) return hb;
+  const prevVal = prevStepObj ? prevStepObj.valueAfter : null;
+  return getChangedBeads(prevVal, step.valueAfter);
 }
 
 function showStep(index, options = {}) {
@@ -1127,7 +822,7 @@ function showStep(index, options = {}) {
   const step = state.demoSteps[safe];
   const prevStep = safe > 0 ? state.demoSteps[safe - 1] : null;
   const animateStep = animate === null ? Boolean(step.animate) : animate;
-  state.highlightBeads = step.highlightBeads || getChangedBeads(prevStep ? prevStep.valueAfter : null, step.valueAfter);
+  state.highlightBeads = resolveHighlightBeads(step, prevStep);
   stopStepAnimation();
   setNumberOnAbacus(step.valueAfter, { animate: animateStep });
   if (animateStep) {
@@ -1141,11 +836,13 @@ function showStep(index, options = {}) {
   scheduleHighlightClear();
   const formulaText = step.formula ? `（${step.formula}）` : "";
   const changedText = describeChangedBeads(state.highlightBeads);
-  refs.stepText.textContent = `步骤 ${safe + 1}/${state.demoSteps.length}：${step.narration}${formulaText}，变化算珠：${changedText}，当前值 ${step.valueAfter}`;
+  const progress = getSceneProgressLine(safe);
+  refs.stepText.textContent = `${progress}：${step.narration}${formulaText}，变化算珠：${changedText}，当前值 ${step.valueAfter}`;
 }
 
 function buildDemo() {
   stopAutoPlay();
+  stopScenePlayback();
   stopStepAnimation();
   const left = Number(refs.leftInput.value);
   const right = Number(refs.rightInput.value);
@@ -1175,6 +872,13 @@ function buildDemo() {
     refs.stepText.textContent = `生成演示失败：${error.message}`;
     return;
   }
+  if (!state.demoSteps.length) {
+    state.stepIndex = -1;
+    refs.expressionText.textContent = `题目：${left} ${op} ${right} = ${result}`;
+    refs.stepText.textContent = "当前算式无珠面变化步骤（例如加 0）。";
+    setNumberOnAbacus(left, { animate: false });
+    return;
+  }
   state.stepIndex = 0;
   refs.expressionText.textContent = `题目：${left} ${op} ${right} = ${result}`;
   showStep(0, { animate: false });
@@ -1185,13 +889,21 @@ function nextStep() {
     refs.stepText.textContent = "请先生成演示。";
     return;
   }
-  if (state.stepIndex >= state.demoSteps.length - 1) {
-    stopAutoPlay();
-    refs.stepText.textContent = "已到最后一步。";
+  stopAutoPlay();
+  const bounds = getSceneBoundsForFlatIndex(state.stepIndex);
+  if (!bounds) return;
+  const atEndOfScene = state.stepIndex === bounds.end;
+  if (!atEndOfScene) {
+    playFlatRange(state.stepIndex, bounds.end, "manual");
     return;
   }
-  const shouldAnimate = !state.isAnimating;
-  showStep(state.stepIndex + 1, { animate: shouldAnimate });
+  const nextStart = bounds.end + 1;
+  if (nextStart >= state.demoSteps.length) {
+    refs.stepText.textContent = "已到最后一场。";
+    return;
+  }
+  const nb = getSceneBoundsForFlatIndex(nextStart);
+  playFlatRange(nextStart, nb.end, "manual");
 }
 
 function prevStep() {
@@ -1199,11 +911,21 @@ function prevStep() {
     refs.stepText.textContent = "请先生成演示。";
     return;
   }
-  if (state.stepIndex <= 0) {
-    refs.stepText.textContent = "已到第一步。";
+  stopAutoPlay();
+  stopScenePlayback();
+  const bounds = getSceneBoundsForFlatIndex(state.stepIndex);
+  if (!bounds) return;
+  if (state.stepIndex > bounds.start) {
+    showStep(bounds.start, { animate: false });
     return;
   }
-  showStep(state.stepIndex - 1, { animate: false });
+  if (bounds.start <= 0) {
+    refs.stepText.textContent = "已到第一场。";
+    return;
+  }
+  const prevEnd = bounds.start - 1;
+  const pb = getSceneBoundsForFlatIndex(prevEnd);
+  showStep(pb.end, { animate: false });
 }
 
 function toggleAutoPlay() {
@@ -1216,10 +938,13 @@ function toggleAutoPlay() {
     refs.stepText.textContent = "自动播放已暂停。";
     return;
   }
+  stopScenePlayback();
   refs.autoPlayBtn.textContent = "暂停播放";
-  state.autoPlayTimer = window.setTimeout(function playNext() {
+  const seqAtStart = state.autoPlaySeq;
+  function tick() {
+    if (seqAtStart !== state.autoPlaySeq) return;
     if (state.isAnimating) {
-      state.autoPlayTimer = window.setTimeout(playNext, 80);
+      state.autoPlayTimer = window.setTimeout(tick, 80);
       return;
     }
     if (state.stepIndex >= state.demoSteps.length - 1) {
@@ -1227,9 +952,13 @@ function toggleAutoPlay() {
       refs.stepText.textContent = "自动播放结束：已到最后一步。";
       return;
     }
-    showStep(state.stepIndex + 1, { animate: true });
-    state.autoPlayTimer = window.setTimeout(playNext, AUTO_PLAY_STEP_DELAY);
-  }, AUTO_PLAY_START_DELAY);
+    const nextIdx = state.stepIndex + 1;
+    const st = state.demoSteps[nextIdx];
+    showStep(nextIdx, { animate: Boolean(st.animate) });
+    const wait = computeDelayAfterShowingFrame(nextIdx, "auto");
+    state.autoPlayTimer = window.setTimeout(tick, wait > 0 ? wait : 40);
+  }
+  state.autoPlayTimer = window.setTimeout(tick, AUTO_PLAY_START_DELAY);
 }
 
 function resetLearn() {
@@ -1247,6 +976,7 @@ function resetLearn() {
 
 function resetDemo() {
   stopAutoPlay();
+  stopScenePlayback();
   stopStepAnimation();
   if (state.clearHighlightTimer) {
     window.clearTimeout(state.clearHighlightTimer);
